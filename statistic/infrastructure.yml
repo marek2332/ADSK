@@ -1,0 +1,100 @@
+- hosts: app
+  become: yes
+  vars:
+    metric_store_ip: 18.194.184.98
+    telegraf_url: "https://dl.influxdata.com/telegraf/releases/telegraf-1.8.3-1.x86_64.rpm"
+  tasks:
+    - name: "install telegraf"
+      yum:
+        name: "{{telegraf_url}}"
+        state: present
+    - name: "changing conf"
+      template:
+        src: telegraf.conf
+        dest: /etc/telegraf/telegraf.conf
+    - name: "restart telegraf"
+      service:
+        name: telegraf
+        state: restarted
+
+
+- hosts: metrics_storage
+  become: yes
+  vars:
+    influxdb_url: "https://dl.influxdata.com/influxdb/releases/influxdb-1.7.1.x86_64.rpm"
+    influxdb_database_name: "metrics"
+    influxdb_folder: "/opt/collectd/share/collectd/"
+    types_db_link: "https://raw.githubusercontent.com/collectd/collectd/master/src/types.db"
+    metric_store_ip: 18.194.184.98
+  tasks:
+    - name: "install influxdb"
+      yum:
+        name: "{{influxdb_url}}"
+        state: present
+    - name: "influxdb restart"
+      service:
+        name: influxdb
+        state: restarted
+    - name: Create the InfluxDB database
+      uri:
+        url: "http://{{metric_store_ip}}:8086/query"
+        method: POST
+        body: "q=CREATE DATABASE metrics"
+    - name: "change conf"
+      template:
+        src: "influxdb.conf"
+        dest: "/etc/influxdb/influxdb.conf"
+    - name: "create folder"
+      file:
+        path: "{{influxdb_folder}}"
+        state: directory
+        mode: "o=rwx"
+    - name: "download typesdb"
+      get_url: 
+        url: "{{types_db_link}}"
+        dest: "{{influxdb_folder}}"
+        mode: "o=rwx"
+    - name: "influxdb restart"
+      service:
+        name: influxdb
+        state: restarted
+
+- hosts: metrics_visualization
+  become: yes
+  vars:
+    grafana_url: https://s3-us-west-2.amazonaws.com/grafana-releases/release/grafana-5.3.4-1.x86_64.rpm
+    influxdb_database_name: "metrics"
+    metric_store_ip: 18.194.184.98
+  tasks:
+    - name: "install grafana"
+      yum:
+        name: "{{grafana_url}}"
+        state: present
+    - name: "change grafana port if not changed"
+      replace:
+        path: "/etc/grafana/grafana.ini"
+        regexp: ';http_port = 3000'
+        replace: 'http_port = 8080'
+    - name: "start server with grafana"
+      service:
+        name: grafana-server
+        state: started
+    - name: "Create influxdb datasource"
+      grafana_datasource:
+        name: "datasource-influxdb"
+        grafana_url: "http://{{metric_store_ip}}:8080"
+        grafana_user: "admin"
+        grafana_password: "admin"
+        sslmode: disable
+        validate_certs: False
+        tls_skip_verify: true
+        org_id: "1"
+        ds_type: "influxdb"
+        url: "http://{{metric_store_ip}}:8086"
+        database: "{{influxdb_database_name}}"
+        time_interval: ">10s"
+        #tls_ca_cert: "/etc/ssl/certs/ca.pem"
+    - name: "grafana restart"
+      service:
+        name: grafana-server
+        state: restarted

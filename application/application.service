@@ -1,0 +1,12 @@
+[Unit]
+Description= Run java spring boot application
+After=network-online.target
+
+[Service]
+Type=simple
+User= ec2-user
+ExecStart= /bin/sh -c "java -jar /home/ec2-user/gs-spring-boot-0.1.0.jar"
+Restart=always
+
+[Install]
+WantedBy=multi-user.target

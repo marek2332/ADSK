@@ -1,0 +1,33 @@
+- hosts: nginx_servers
+  vars:
+    user: "ec2-user"
+    domain: "adskzaliczenie.ml"
+    domain_www: "www.adskzaliczenie.ml"
+    email: "markid2398@gmail.com"
+    app_ip: "3.120.133.46"
+  become: yes
+  tasks:
+    - name: 'Install nginx'
+      yum:
+        name: nginx
+        state: present
+    - name: 'start nginx service'
+      service:
+        name: nginx
+        state: started
+    - name: 'copy conf file'
+      template:
+        src: "./nginx_server.conf"
+        dest: "/etc/nginx/conf.d/virtual.conf"
+    - name: 'install ssl'
+      get_url:
+        url: "https://dl.eff.org/certbot-auto"
+        dest: "/home/{{user}}/"
+        mode: "a+x"
+    - name: 'Generate ssl'
+      shell: "/home/{{user}}/certbot-auto --debug --nginx -d {{domain}} -d {{domain_www}} -m '{{email}}' --redirect --non-interactive --agree-tos --force-renewal"
+    - name: 'reload nginx server'
+      service:
+        name: nginx
+        state: reloaded
+       

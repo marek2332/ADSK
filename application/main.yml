@@ -1,0 +1,29 @@
+- hosts: application_group
+  become: yes
+  vars:
+    jar_folder: "./gs-spring-boot-0.1.0.jar"
+    jar_destination: "/home/ec2-user/gs-spring-boot-0.1.0.jar"
+    systemd_config_folder: "./application.service"
+    systemd_config_destination: "/etc/systemd/system/application.service"
+  tasks:
+    - name: 'Install Java'
+      yum:
+        name: java-1.8.0-openjdk.x86_64
+        state: present
+    - name: 'Copy jar file to remote'
+      copy:
+        src:  "{{jar_folder}}"
+        dest: "{{jar_destination}}"
+        mode: 0644
+
+    - name: "Copy systemd config"
+      copy:
+        src: "{{systemd_config_folder}}"
+        dest: "{{systemd_config_destination}}"
+
+    - name: "Start service"
+      systemd:
+        name: application
+        daemon_reload: yes
+        state: restarted
+ 
